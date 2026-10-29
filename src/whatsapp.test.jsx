@@ -5,7 +5,7 @@ import Admin from './Admin'
 import { ShareThoughts } from './App'
 import { defaultContent } from './data'
 import { loadContent } from './storage'
-import { buildWhatsAppUrl, DEFAULT_WHATSAPP_NUMBER, formatWhatsAppPreview, normalizeWhatsAppNumber } from './whatsapp'
+import { buildWhatsAppUrl, DEFAULT_WHATSAPP_NUMBER, formatWhatsAppPreview, getWhatsAppLinkTarget, normalizeWhatsAppNumber } from './whatsapp'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -16,6 +16,13 @@ describe('WhatsApp Click to Chat', () => {
     expect(formatWhatsAppPreview(DEFAULT_WHATSAPP_NUMBER)).toBe('+917558764877')
     expect(buildWhatsAppUrl(DEFAULT_WHATSAPP_NUMBER, 'Hi Arati, it’s lovely 💗\nHow are you?').url)
       .toBe('https://wa.me/917558764877?text=Hi%20Arati%2C%20it%E2%80%99s%20lovely%20%F0%9F%92%97%0AHow%20are%20you%3F')
+  })
+
+  it('opens WhatsApp in the same tab on phones and a new tab on desktops', () => {
+    expect(getWhatsAppLinkTarget('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')).toBe('_self')
+    expect(getWhatsAppLinkTarget('Mozilla/5.0 (Linux; Android 14)')).toBe('_self')
+    expect(getWhatsAppLinkTarget('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Win32')).toBe('_blank')
+    expect(getWhatsAppLinkTarget('Mozilla/5.0 (Macintosh; Intel Mac OS X)', 'MacIntel', 5)).toBe('_self')
   })
 
   it('rejects empty messages and invalid recipient inputs', () => {
@@ -32,6 +39,8 @@ describe('WhatsApp Click to Chat', () => {
     vi.stubGlobal('open', open)
     render(<Admin content={content} onContent={onContent} />)
     fireEvent.click(screen.getByRole('button', { name: 'WhatsApp Message Settings' }))
+    expect(screen.getByText(/number that should receive messages/i)).toBeInTheDocument()
+    expect(screen.getByText('Messages will be addressed to')).toBeInTheDocument()
     expect(screen.getByText('+917558764877')).toBeInTheDocument()
     expect(open).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Test WhatsApp Link' }))
@@ -61,6 +70,7 @@ describe('WhatsApp Click to Chat', () => {
     expect(shareLink).toHaveAttribute('href', `https://wa.me/14155550134?text=${encodeURIComponent(message)}`)
     expect(shareLink).toHaveAttribute('target', '_blank')
     expect(shareLink).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getByText('+14155550134')).toBeInTheDocument()
     fireEvent.click(shareLink)
     expect(screen.getByRole('status')).toHaveTextContent(/ready to share in WhatsApp/i)
     expect(open).not.toHaveBeenCalled()

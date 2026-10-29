@@ -32,3 +32,9 @@ export function formatWhatsAppPreview(value) {
   const normalized = normalizeWhatsAppNumber(value)
   return normalized.error ? 'Enter a valid number to preview it.' : `+${normalized.number}`
 }
+
+export function getWhatsAppLinkTarget(userAgent, platform = '', maxTouchPoints = 0) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(userAgent)
+    || (platform === 'MacIntel' && maxTouchPoints > 1)
+  return isMobile ? '_self' : '_blank'
+}

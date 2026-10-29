@@ -114,6 +114,9 @@ button { color: inherit; }
 .thought-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; margin-top: -4px; }
 .button-whatsapp { background: #248b53; color: white; box-shadow: 0 8px 18px rgba(36,139,83,.2); }
 .button-whatsapp:hover { background: #176f40; }
+.whatsapp-recipient { margin: 14px 0 -6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.whatsapp-recipient strong { color: #755078; }
+.whatsapp-recipient span { display: block; font-size: 11px; }
 .button-private { background: #eff0ff; border-color: #dedffc; color: #655a8c; }
 .error-line { color: #a33250; background: #fff0f2; border-radius: 10px; padding: 9px 12px; }
 .number-preview { display: grid; gap: 4px; padding: 14px; border-radius: 13px; background: #f6f0fa; }.number-preview span { color: var(--muted); font-size: 11px; }.number-preview b { color: #755078; font-size: 20px; letter-spacing: .7px; }.number-preview small { color: var(--muted); line-height: 1.5; font-size: 11px; }
@@ -185,6 +188,20 @@ button { color: inherit; }
 @media (max-width: 800px) { .site-header { min-height: 70px; }.menu-toggle { display: grid; }.main-nav { display: none; position: absolute; top: 64px; left: 16px; right: 16px; z-index: 5; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 17px; box-shadow: var(--shadow); flex-wrap: wrap; }.main-nav.open { display: flex; }.nav-link { font-size: 12px; padding: 9px 10px; }.hero { grid-template-columns: 1fr 1fr; padding-inline: 10px; gap: 20px; min-height: 380px; }.hero-art { height: 300px; }.hero-flower { font-size: 90px; }.preview-grid, .world-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.feelings-grid { grid-template-columns: repeat(4, 1fr); }.admin-layout { grid-template-columns: 1fr; }.admin-tabs { display: flex; overflow-x: auto; }.admin-tabs button { flex: 0 0 auto; }.journal-layout { grid-template-columns: 230px 1fr; } }
 @media (max-width: 560px) { .main-content { width: calc(100% - 28px); padding-top: 27px; }.site-header { width: calc(100% - 28px); }.hero { grid-template-columns: 1fr; padding: 14px 0 27px; gap: 15px; }.hero h1 { font-size: 41px; }.hero-copy > p { font-size: 14px; }.hero-art { height: 260px; max-width: 330px; }.hero-flower { font-size: 82px; }.hero-pot { bottom: 20px; }.comfort-strip { margin-bottom: 44px; }.comfort-strip p { font-size: 16px; }.section-heading { align-items: flex-start; margin-top: 39px; }.section-heading h2 { font-size: 22px; }.section-heading > .text-link { margin-top: 18px; white-space: nowrap; font-size: 11px; }.preview-grid, .world-grid, .joy-grid, .game-preview, .game-grid { grid-template-columns: 1fr; }.letter-card { min-height: 190px; }.letter-card-link { min-height: 150px; }.joy-card { min-height: 125px; }.mini-game { padding: 14px; }.reminder-preview { padding: 22px; }.reminder-preview h2 { font-size: 21px; }.big-flower { font-size: 46px; }.invitation h2 { font-size: 24px; }.page-heading { margin-bottom: 25px; }.page-heading h1 { font-size: 34px; }.page-heading p { font-size: 13px; }.feelings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }.feeling-card { min-height: 110px; }.feeling-response { padding: 20px; }.letter-controls { flex-wrap: wrap; align-items: center; }.search-box { flex-basis: 100%; }.select-label { flex: 1; }.letter-detail { padding: 24px 19px; }.letter-detail h1 { font-size: 29px; }.letter-body { font-size: 14px; }.letter-pager .button { font-size: 11px; padding-inline: 10px; }.reminder-feature { min-height: 310px; padding: 22px; }.reminder-feature blockquote { font-size: 25px; }.reminder-feature .button-row { gap: 7px; }.reminder-feature .button { font-size: 11px; padding: 9px; }.reminder-row { flex-wrap: wrap; }.reminder-row small { width: 100%; margin-left: 28px; }.thought-card { padding: 18px; }.journal-layout { grid-template-columns: 1fr; }.journal-sidebar { order: 2; }.journal-editor { order: 1; }.game-shell { padding: 14px; }.block-layout { gap: 12px; }.next-piece { width: 105px; font-size: 10px; }.block-board { --cell: clamp(13px, 6vw, 20px); gap: 1px; }.touch-controls { display: flex; }.game-stats { gap: 6px; }.game-stats span { padding: 8px 10px; }.word-grid { gap: 2px; }.word-cell { border-radius: 3px; }.button-row { gap: 7px; }.button { padding: 9px 12px; font-size: 12px; }.admin-panel { padding: 15px; }.admin-stats { grid-template-columns: repeat(2, 1fr); }.admin-panel-title span { display: none; }.field-grid { grid-template-columns: 1fr 1fr; } }
 
+@media (max-width: 560px) {
+  .admin-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .admin-tabs button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+}
+
 .chess-board { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); width: min(100%, 520px); aspect-ratio: 1; margin: 20px auto; overflow: hidden; border: 5px solid #783d50; border-radius: 13px; box-shadow: 0 12px 32px rgba(80, 48, 64, .16); }
 .chess-square { display: grid; place-items: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 0; cursor: pointer; }
 .chess-square.light { background: #f9ecdc; }.chess-square.dark { background: #c68e79; }.chess-square.selected { box-shadow: inset 0 0 0 4px #783d50; }.chess-square.legal { position: relative; }.chess-square.legal::after { content: ''; width: 27%; aspect-ratio: 1; border-radius: 50%; background: rgba(120, 61, 80, .38); }
@@ -196,3 +213,13 @@ button { color: inherit; }
 .memory-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; width: min(100%, 480px); margin: 20px auto; }.memory-card { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid #e8cfd8; border-radius: 15px; background: linear-gradient(145deg, #f8dde3, #fff9f5); color: #8d5269; font-size: clamp(24px, 6vw, 42px); cursor: pointer; box-shadow: 0 4px 12px rgba(80,48,64,.08); transition: transform .18s ease, background .18s ease; }.memory-card:not(:disabled):hover { transform: translateY(-3px); }.memory-card.revealed { background: #fff; }.game-note { color: var(--muted); font-size: 13px; }
 :root[data-theme=dark] .chess-square.light { background: #ead9c5; }:root[data-theme=dark] .chess-square.dark { background: #9e6c63; }:root[data-theme=dark] .snake-board { background: #403544; }:root[data-theme=dark] .snake-cell { background: rgba(255,255,255,.08); }:root[data-theme=dark] .ball-arena { background: radial-gradient(ellipse at center, #403544, #342b38); }:root[data-theme=dark] .tic-square, :root[data-theme=dark] .memory-card { background: #403544; color: #f2e9f3; }
 @media (max-width: 560px) { .chess-board { border-width: 3px; border-radius: 8px; }.chess-square.selected { box-shadow: inset 0 0 0 2px #783d50; }.ball-arena { min-height: 270px; }.memory-board { gap: 7px; }.memory-card { border-radius: 11px; }.snake-cell.food { font-size: 11px; } }
+
+.game-mode-picker, .game-speed-picker { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0 auto 16px; }
+.game-mode-picker .button, .game-speed-picker .button { min-height: 42px; }
+.game-speed-picker > span { color: var(--muted); font-size: 12px; font-weight: 650; }
+@media (max-width: 560px) {
+  .game-mode-picker { flex-direction: column; }
+  .game-mode-picker .button { width: min(100%, 290px); }
+  .game-speed-picker { gap: 7px; }
+  .game-speed-picker .button { padding-inline: 12px; }
+}

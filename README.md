@@ -24,6 +24,10 @@ npm run lint
 npm run build
 ```
 
+## Deploying to Netlify
+
+Publish the `dist` directory after running `npm run build`. The `public/_redirects` rule is copied into the build output so direct visits and refreshes on app routes (including `/superadmin25`) load the SPA instead of returning a 404.
+
 ## Features
 
 - Home, Little World, Happiness Corner, Letters, Memories, Surprise, Games, Reminders, Share Thoughts, Private Journal, and Local Editor pages, plus a friendly not-found route.
@@ -33,6 +37,7 @@ npm run build
 - Thirteen complete seed letters, search, categories, previous/next navigation, published/draft visibility, and browser-local favorites.
 - Temporary feelings selection; it is not saved or transmitted.
 - Word search with nine configurable words, validated placement, endpoint selection, hints, progress, and restart.
+- Snake with selectable slow, normal, and fast speeds; chess and tic-tac-toe can be played against the computer or offline with a friend.
 - Falling-block puzzle with collision checks, rotation, row clearing, keyboard/touch controls, pause/restart, and a local best score.
 - Three BFS-verified maze levels with keyboard/touch movement, timer, hints, restart, completion, and local unlocked-level progress.
 - Shufflable and filterable reminders, favorites, and copy-to-clipboard feedback.
@@ -67,7 +72,7 @@ Personalization lives in `src/data.js` under `defaultContent.personalization` (n
 
 The scrapbook uses the `bestfriend.memories.v1` browser-local storage key, separate from the public content editor. Large photos are rejected to avoid filling browser storage. If a browser's local storage is cleared, its photos and captions are removed too.
 
-Open **Local editor** in the footer or navigate to `/superadmin`. It is intentionally not password-protected: anyone with access to the same browser profile can open it. Edits stay in that browser and are not shared with another device or visitor.
+Open **Local editor** in the footer or navigate to `/superadmin25` (the previous `/superadmin` URL also works). It is intentionally not password-protected: anyone with access to the same browser profile can open it. Edits stay in that browser and are not shared with another device or visitor.
 
 - **Letters** creates, edits, publishes, reorders, previews, and deletes letters. Drafts do not appear in the public collection.
 - **Reminders** edits, reorders, and restores initial reminders.
@@ -82,7 +87,7 @@ Editable content, favorites, game scores/progress, and explicitly saved thought 
 
 Journal entries are stored only in this browser. They are not encrypted or password-protected, and may be lost if browser data is cleared or the user changes devices. Do not use the journal as the sole copy of important information. Journal entries are separate from the content editor and public-content export.
 
-WhatsApp is optional. Its initial recipient is `7558764877`; a 10-digit number is treated as an Indian number and receives country code `91`. You can change it in **Local editor → WhatsApp Message Settings** using a 10-digit Indian number or a full international number (optionally starting with `+`). The setting affects only this browser. On Share Thoughts, the share action is a direct, user-activated `wa.me` link with the current message encoded for WhatsApp, avoiding popup-blocker issues. The message opens addressed to the saved number for review; the recipient must press Send in WhatsApp. The website does not send or track delivery, and private journal entries are never included.
+WhatsApp is optional. Its initial recipient is `7558764877`; a 10-digit number is treated as an Indian number and receives country code `91`. Change the receiver in **Local editor → WhatsApp Message Settings** using a 10-digit Indian number or a full international number (optionally starting with `+`). The editor previews the destination, and the Share Thoughts page shows which number will receive the message. This setting is saved only in that browser; to change the default receiver for every visitor, update `settings.whatsappNumber` in `src/data.js` and redeploy. On phones, the user-activated WhatsApp link opens in the current tab so the WhatsApp app can launch if installed; on desktop it opens in a new tab. The prefilled message opens addressed to the saved number for review; the recipient must press Send in WhatsApp. The website does not send or track delivery, and private journal entries are never included.
 
 ## Resetting content
 

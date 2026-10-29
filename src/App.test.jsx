@@ -26,6 +26,13 @@ describe('the local website', () => {
     expect(await screen.findByRole('heading', { name: /How are you feeling today/i })).toBeInTheDocument()
   })
 
+  it('opens the superadmin editor when entering /superadmin25 directly', async () => {
+    window.history.replaceState({}, '', '/superadmin25')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Little world editor' })).toBeInTheDocument()
+    window.history.replaceState({}, '', '/')
+  })
+
   it('navigates to the replayable surprise and the happiness corner', async () => {
     window.history.replaceState({}, '', '/')
     localStorage.setItem('arati.welcome.complete', 'true')

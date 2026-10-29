@@ -9,10 +9,10 @@ const gameInfo = [
   { to: '/games/block-puzzle', emoji: '🧩', title: 'Little Blocks of Happiness', text: 'Stack colorful shapes, clear rows, and take it one piece at a time.' },
   { to: '/games/word-search', emoji: '💗', title: 'Find Our Favorite Names', text: 'A cozy word search with nine special names hidden in the grid.' },
   { to: '/games/maze', emoji: '🌷', title: 'Find Your Way Home', text: 'Follow a winding path through three gentle little mazes.' },
-  { to: '/games/chess', emoji: '♟️', title: 'Chess Together', text: 'A thoughtful two-player chess match, with all the classic rules.' },
-  { to: '/games/snake', emoji: '🐍', title: 'Little Snake', text: 'Guide a cheerful snake, collect berries, and try to beat your best.' },
+  { to: '/games/chess', emoji: '♟️', title: 'Chess Together', text: 'Play a thoughtful match against the computer or a friend offline.' },
+  { to: '/games/snake', emoji: '🐍', title: 'Little Snake', text: 'Choose your speed, collect berries, and try to beat your best.' },
   { to: '/games/ball-bounce', emoji: '🏀', title: 'Catch the Bouncy Ball', text: 'Tap the bouncing ball as many times as you can before time runs out.' },
-  { to: '/games/tic-tac-toe', emoji: '⭕', title: 'Tic-Tac-Toe', text: 'A quick little face-off for two players sharing one screen.' },
+  { to: '/games/tic-tac-toe', emoji: '⭕', title: 'Tic-Tac-Toe', text: 'Play the computer or challenge a friend on the same screen.' },
   { to: '/games/memory-match', emoji: '🃏', title: 'Memory Match', text: 'Flip the cards and find all the matching pairs.' },
 ]
 
@@ -26,6 +26,13 @@ export function PageHeading({ emoji, title, intro }) {
 
 function GameShell({ title, intro, children }) {
   return <><PageHeading emoji="🌸" title={title} intro={intro} /><section className="card game-shell">{children}</section></>
+}
+
+export function GameModePicker({ mode, onModeChange }) {
+  return <div className="game-mode-picker" role="group" aria-label="Choose who to play with">
+    <button type="button" className={`button${mode === 'computer' ? ' button-primary' : ' button-secondary'}`} aria-pressed={mode === 'computer'} onClick={() => onModeChange('computer')}>Automatic · Play with computer</button>
+    <button type="button" className={`button${mode === 'friend' ? ' button-primary' : ' button-secondary'}`} aria-pressed={mode === 'friend'} onClick={() => onModeChange('friend')}>Play with a friend · Offline</button>
+  </div>
 }
 
 export function BlockPuzzle({ content }) {
@@ -236,6 +243,7 @@ export function SnakeGame() {
   const [playing, setPlaying] = useState(false)
   const [over, setOver] = useState(false)
   const [best, setBest] = useState(() => storage.get('arati.snake.best', 0))
+  const [speed, setSpeed] = useState(190)
   const directionRef = useRef(game.direction)
   const score = game.body.length - 3
   const changeDirection = useCallback((direction) => {
@@ -284,10 +292,14 @@ export function SnakeGame() {
         }
         return { ...state, body }
       })
-    }, 190)
+    }, speed)
     return () => window.clearInterval(timer)
-  }, [best, playing])
+  }, [best, playing, speed])
   return <GameShell title="Little Snake 🐍" intro="Collect the berries without bumping into the walls or your tail. Use arrow keys or the buttons.">
+    <div className="game-speed-picker" role="group" aria-label="Snake speed">
+      <span>Speed</span>
+      {[['Slow', 280], ['Normal', 190], ['Fast', 110]].map(([label, interval]) => <button type="button" key={label} className={`button${speed === interval ? ' button-primary' : ' button-secondary'}`} aria-pressed={speed === interval} onClick={() => setSpeed(interval)}>{label}</button>)}
+    </div>
     <div className="game-stats"><span>Score <b>{score}</b></span><span>Best <b>{best}</b></span></div>
     <div className="snake-board" role="grid" aria-label="Snake game board">
       {Array.from({ length: 144 }, (_, index) => {
@@ -348,20 +360,62 @@ export function BallBounce() {
 
 const ticTacToeWins = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
 
+function getTicTacToeWinner(squares) {
+  return ticTacToeWins.map((line) => line.every((index) => squares[index] && squares[index] === squares[line[0]]) ? squares[line[0]] : null).find(Boolean)
+}
+
+function chooseTicTacToeMove(squares) {
+  const scoreBoard = (board, mark) => {
+    const winner = getTicTacToeWinner(board)
+    if (winner === 'O') return 10 - board.filter(Boolean).length
+    if (winner === 'X') return board.filter(Boolean).length - 10
+    if (board.every(Boolean)) return 0
+    const scores = []
+    board.forEach((square, index) => {
+      if (square) return
+      const next = [...board]
+      next[index] = mark
+      scores.push(scoreBoard(next, mark === 'O' ? 'X' : 'O'))
+    })
+    return mark === 'O' ? Math.max(...scores) : Math.min(...scores)
+  }
+  let bestScore = -Infinity
+  let bestMove = -1
+  squares.forEach((square, index) => {
+    if (square) return
+    const next = [...squares]
+    next[index] = 'O'
+    const score = scoreBoard(next, 'X')
+    if (score > bestScore) { bestScore = score; bestMove = index }
+  })
+  return bestMove
+}
+
 export function TicTacToe() {
   const [squares, setSquares] = useState(Array(9).fill(null))
-  const winner = ticTacToeWins.map((line) => line.every((index) => squares[index] && squares[index] === squares[line[0]]) ? squares[line[0]] : null).find(Boolean)
+  const [mode, setMode] = useState('friend')
+  const winner = getTicTacToeWinner(squares)
   const turn = squares.filter(Boolean).length % 2 === 0 ? 'X' : 'O'
-  const message = winner ? `${winner} wins! Nicely played!` : squares.every(Boolean) ? 'A draw! Play another round?' : `${turn === 'X' ? 'Player 1' : 'Player 2'}'s turn (${turn})`
+  const message = winner ? `${winner} wins! Nicely played!` : squares.every(Boolean) ? 'A draw! Play another round?' : mode === 'computer' && turn === 'O' ? 'Computer is thinking…' : `${turn === 'X' ? 'Player 1' : 'Player 2'}'s turn (${turn})`
+  useEffect(() => {
+    if (mode !== 'computer' || turn !== 'O' || winner || squares.every(Boolean)) return undefined
+    const timer = window.setTimeout(() => {
+      const move = chooseTicTacToeMove(squares)
+      if (move >= 0) setSquares((current) => current[move] || getTicTacToeWinner(current) ? current : current.map((square, index) => index === move ? 'O' : square))
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [mode, squares, turn, winner])
   const play = (index) => {
-    if (squares[index] || winner) return
+    if (squares[index] || winner || (mode === 'computer' && turn !== 'X')) return
     const next = [...squares]
     next[index] = turn
     setSquares(next)
   }
-  return <GameShell title="Tic-Tac-Toe ⭕" intro="A tiny two-player classic. Take turns choosing a square on the same screen.">
+  const changeMode = (nextMode) => { setMode(nextMode); setSquares(Array(9).fill(null)) }
+  return <GameShell title="Tic-Tac-Toe ⭕" intro="Play automatically against the computer or take turns with a friend offline.">
+    <GameModePicker mode={mode} onModeChange={changeMode} />
     <p className="game-message" role="status" aria-live="polite">{message}</p>
-    <div className="tic-board" role="grid" aria-label="Tic-tac-toe board">{squares.map((mark, index) => <button key={index} type="button" role="gridcell" className={`tic-square${mark ? ` mark-${mark.toLowerCase()}` : ''}`} onClick={() => play(index)} aria-label={`Square ${index + 1}${mark ? `, ${mark}` : ', empty'}`} disabled={Boolean(mark) || Boolean(winner)}>{mark}</button>)}</div>
+    <div className="tic-board" role="grid" aria-label="Tic-tac-toe board">{squares.map((mark, index) => <button key={index} type="button" role="gridcell" className={`tic-square${mark ? ` mark-${mark.toLowerCase()}` : ''}`} onClick={() => play(index)} aria-label={`Square ${index + 1}${mark ? `, ${mark}` : ', empty'}`} disabled={Boolean(mark) || Boolean(winner) || (mode === 'computer' && turn !== 'X')}>{mark}</button>)}</div>
     <div className="button-row"><button className="button button-secondary" onClick={() => setSquares(Array(9).fill(null))}>New round</button></div>
   </GameShell>
 }
