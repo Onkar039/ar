@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, RotateCcw, Upload } from 'lucide-react'
+import { Download, LogOut, RotateCcw, Upload } from 'lucide-react'
 import { defaultContent } from './data'
 import { validateMaze, validateWords } from './gameEngines'
 import { publicContent, saveContent, storage } from './storage'
 import { buildWhatsAppUrl, DEFAULT_WHATSAPP_NUMBER, formatWhatsAppPreview, normalizeWhatsAppNumber } from './whatsapp'
+import { getSupabaseClient, saveSharedContent } from './sharedContent'
 
 const tabs = ['Overview', 'Home', 'Letters', 'Topics & letters', 'Reminders', 'Word search', 'Blocks', 'Maze', 'Theme', 'Settings', 'WhatsApp Message Settings', 'Data tools']
 const clone = (value) => structuredClone(value)
@@ -12,9 +13,14 @@ const isHttpUrl = (value) => {
   try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
 }
 
-export default function Admin({ content, onContent }) {
+export default function Admin({ content, onContent, sharedContentEnabled = false, onSharedContentSaved = () => {} }) {
   const [active, setActive] = useState('Overview')
   const [notice, setNotice] = useState('')
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(!sharedContentEnabled)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [authError, setAuthError] = useState('')
   const [letterId, setLetterId] = useState(content.letters[0]?.slug || '')
   const [reminderId, setReminderId] = useState(content.reminders[0]?.id || '')
   const [mazeId, setMazeId] = useState(content.mazeLevels[0]?.id || '')
@@ -27,10 +33,71 @@ export default function Admin({ content, onContent }) {
   const [importPreview, setImportPreview] = useState(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const fileRef = useRef(null)
+  const sharedSaveTimer = useRef(null)
+  const sharedSaveVersion = useRef(0)
+  useEffect(() => {
+    if (!sharedContentEnabled) return undefined
+    const client = getSupabaseClient()
+    let active = true
+    client.auth.getSession().then(({ data, error }) => {
+      if (!active) return
+      if (error) setAuthError(`Could not check admin sign-in: ${error.message}`)
+      setSession(data?.session || null)
+      setAuthReady(true)
+    }).catch((error) => {
+      if (active) {
+        setAuthError(`Could not check admin sign-in: ${error.message}`)
+        setAuthReady(true)
+      }
+    })
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      setAuthError('')
+    })
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [sharedContentEnabled])
+
+  const signIn = async (event) => {
+    event.preventDefault()
+    setAuthError('')
+    try {
+      const { error } = await getSupabaseClient().auth.signInWithPassword({ email: loginEmail.trim(), password: loginPassword })
+      if (error) setAuthError(`Could not sign in: ${error.message}`)
+    } catch (error) {
+      setAuthError(`Could not sign in: ${error.message}`)
+    }
+  }
+  const signOut = async () => {
+    try {
+      const { error } = await getSupabaseClient().auth.signOut()
+      if (error) setNotice(`Could not sign out: ${error.message}`)
+    } catch (error) {
+      setNotice(`Could not sign out: ${error.message}`)
+    }
+  }
   const commit = (next, message = 'Saved in this browser.') => {
     if (!saveContent(next)) { setNotice('Could not save. Your browser storage may be full or unavailable.'); return false }
     onContent(next)
-    setNotice(message)
+    if (!sharedContentEnabled) {
+      setNotice(message)
+      return true
+    }
+    setNotice('Saving changes to shared site content…')
+    window.clearTimeout(sharedSaveTimer.current)
+    const version = ++sharedSaveVersion.current
+    sharedSaveTimer.current = window.setTimeout(async () => {
+      try {
+        await saveSharedContent(publicContent(next))
+        if (version !== sharedSaveVersion.current) return
+        onSharedContentSaved()
+        setNotice('Changes are live for visitors and will sync to other devices.')
+      } catch (error) {
+        if (version === sharedSaveVersion.current) setNotice(`Saved only on this device. Shared save failed: ${error.message}`)
+      }
+    }, 600)
     return true
   }
   const update = (path, value) => {
@@ -173,6 +240,13 @@ export default function Admin({ content, onContent }) {
     } catch { return 'Unavailable' }
   })()
 
+  if (sharedContentEnabled && !authReady) {
+    return <section className="card admin-auth-card" aria-live="polite"><p role="status">Checking admin sign-in…</p></section>
+  }
+  if (sharedContentEnabled && !session) {
+    return <section className="admin-wrap"><div className="page-heading admin-heading"><span className="eyebrow">🔒 SHARED SITE EDITOR</span><h1>Admin sign-in</h1><p>Sign in with the admin account configured for this site to publish changes across devices.</p></div><form className="card admin-auth-card form-stack" onSubmit={signIn}><Field label="Admin email"><input type="email" autoComplete="username" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></Field><Field label="Password"><input type="password" autoComplete="current-password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></Field>{authError && <p className="error-text" role="alert">{authError}</p>}<button className="button button-primary" type="submit">Sign in to Superadmin</button><p className="privacy-note">Admin accounts are created in the Supabase project; public sign-up is not available.</p></form></section>
+  }
+
   if (active === 'Topics & letters') {
     return <LetterTopics
       content={content}
@@ -182,7 +256,7 @@ export default function Admin({ content, onContent }) {
     />
   }
 
-  return <section className="admin-wrap"><div className="page-heading admin-heading"><span className="eyebrow">🛠️ LOCAL EDITOR</span><h1>Little world editor</h1><p>This is a browser-local content manager, not secure authentication or shared cloud storage. Anyone using this browser profile can open it; edits stay on this device.</p></div><div className="admin-layout"><nav className="admin-tabs" aria-label="Content editor sections">{tabs.map((tab) => <button key={tab} onClick={() => setActive(tab)} className={active === tab ? 'active' : ''}>{tab}</button>)}</nav><div className="admin-panel card"><div className="admin-panel-title"><h2>{active}</h2><span>Saved only in this browser</span></div>{notice && <p className="notice" role="status">{notice}</p>}
+  return <section className="admin-wrap"><div className="page-heading admin-heading"><span className="eyebrow">{sharedContentEnabled ? '🔒 SHARED SITE EDITOR' : '🛠️ LOCAL EDITOR'}</span><h1>Little world editor</h1><p>{sharedContentEnabled ? 'Changes are saved to the shared site and become visible to visitors on every device.' : 'This is a browser-local content manager, not secure authentication or shared cloud storage. Anyone using this browser profile can open it; edits stay on this device.'}</p></div>{sharedContentEnabled && <div className="shared-admin-bar"><span>Signed in as <strong>{session.user.email}</strong></span><button className="button button-quiet" onClick={signOut}><LogOut size={15} /> Sign out</button><button className="button button-primary" onClick={() => commit(content)}>Publish current content to all devices</button></div>}{!sharedContentEnabled && <p className="notice" role="status">Shared sync is not configured. Changes are saved only in this browser.</p>}<div className="admin-layout"><nav className="admin-tabs" aria-label="Content editor sections">{tabs.map((tab) => <button key={tab} onClick={() => setActive(tab)} className={active === tab ? 'active' : ''}>{tab}</button>)}</nav><div className="admin-panel card"><div className="admin-panel-title"><h2>{active}</h2><span>{sharedContentEnabled ? 'Shared across devices' : 'Saved only in this browser'}</span></div>{notice && <p className="notice" role="status">{notice}</p>}
       {active === 'Overview' && <div><p>Counts reflect editable public content only. Private journal entries, thoughts, and feelings selections are never shown here.</p><div className="admin-stats"><div><b>{content.letters.length}</b><span>Total letters</span></div><div><b>{content.letters.filter((item) => item.published).length}</b><span>Published</span></div><div><b>{content.letters.filter((item) => !item.published).length}</b><span>Drafts</span></div><div><b>{content.reminders.length}</b><span>Reminders</span></div><div><b>{content.mazeLevels.length}</b><span>Maze levels</span></div><div><b>{content.wordSearch.words.length === 9 ? 'Ready' : 'Check'}</b><span>Word search</span></div><div><b>{storageBytes}</b><span>Storage estimate</span></div></div><p>Changes are not synced to another device and may be lost if browser data is cleared.</p></div>}
       {active === 'Home' && <div className="form-stack"><Field label="Hero heading"><input value={content.home.heading} onChange={(e) => update(['home', 'heading'], e.target.value)} /></Field><Field label="Subtitle"><textarea value={content.home.subtitle} onChange={(e) => update(['home', 'subtitle'], e.target.value)} /></Field><Field label="Explore button"><input value={content.home.exploreLabel} onChange={(e) => update(['home', 'exploreLabel'], e.target.value)} /></Field><Field label="Comfort button"><input value={content.home.comfortLabel} onChange={(e) => update(['home', 'comfortLabel'], e.target.value)} /></Field><Field label="Rotating messages (one per line)"><textarea value={content.home.messages.join('\n')} onChange={(e) => update(['home', 'messages'], e.target.value.split('\n').filter(Boolean))} /></Field>{Object.entries(content.home.sections || defaultContent.home.sections).map(([key, value]) => <Field label={`Section heading: ${key}`} key={key}><input value={value} onChange={(e) => update(['home', 'sections', key], e.target.value)} /></Field>)}<Link className="button button-secondary fit" to="/">Preview the home page ↗</Link><button className="button button-quiet fit" onClick={() => window.confirm('Restore the default home page content?') && update(['home'], clone(defaultContent.home))}><RotateCcw size={16} /> Restore home defaults</button></div>}
       {active === 'Letters' && <div className="form-stack"><div className="button-row"><select aria-label="Choose letter" value={letterId} onChange={(e) => setLetterId(e.target.value)}>{content.letters.map((item) => <option value={item.slug} key={item.slug}>{item.title}</option>)}</select><button className="button button-secondary" onClick={() => { const item = { title: 'A new little letter', slug: `new-letter-${Date.now()}`, emoji: '💌', category: 'Everyday', language: 'English', body: '', published: false }; const next = clone(content); next.letters.push(item); if (commit(next)) setLetterId(item.slug) }}>Add a letter</button></div>{currentLetter && <><Field label="Title"><input value={currentLetter.title} onChange={(e) => editLetter({ title: e.target.value })} /></Field><Field label="Unique slug"><input value={currentLetter.slug} onChange={(e) => { const value = e.target.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'); if (!value || content.letters.some((item) => item.slug === value && item.slug !== letterId)) { setNotice('Letter slugs must be non-empty and unique.'); return } const old = letterId; const next = clone(content); const target = next.letters.find((item) => item.slug === old); target.slug = value; if (commit(next)) setLetterId(value) }} /></Field><div className="field-grid"><Field label="Emoji"><input value={currentLetter.emoji} onChange={(e) => editLetter({ emoji: e.target.value })} /></Field><Field label="Category"><input value={currentLetter.category} onChange={(e) => editLetter({ category: e.target.value })} /></Field><Field label="Language"><select value={currentLetter.language} onChange={(e) => editLetter({ language: e.target.value })}><option>English</option><option>Marathi</option><option>English & Marathi</option></select></Field></div><Field label="Letter body"><textarea rows="10" value={currentLetter.body} onChange={(e) => editLetter({ body: e.target.value })} /></Field><label className="check-field"><input type="checkbox" checked={!!currentLetter.published} onChange={(e) => { if (e.target.checked && (!currentLetter.title.trim() || !currentLetter.body.trim() || !currentLetter.slug.trim())) { setNotice('Add a title, unique slug, and letter body before publishing.'); return } editLetter({ published: e.target.checked }) }} /> Published on the public letters page</label><div className="button-row"><button className="button button-secondary" onClick={() => { const index = content.letters.findIndex((item) => item.slug === letterId); const next = clone(content); next.letters = reorder(next.letters, index, -1); commit(next) }}>Move up</button><button className="button button-secondary" onClick={() => { const index = content.letters.findIndex((item) => item.slug === letterId); const next = clone(content); next.letters = reorder(next.letters, index, 1); commit(next) }}>Move down</button><button className="button button-quiet" onClick={() => setPreview('letter')}>Preview letter</button><button className="button button-danger" onClick={() => { if (window.confirm('Delete this letter? This cannot be undone.')) { const next = clone(content); next.letters = next.letters.filter((item) => item.slug !== letterId); if (commit(next)) setLetterId(next.letters[0]?.slug || '') } }}>Delete letter</button></div></>}</div>}

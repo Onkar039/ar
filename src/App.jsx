@@ -7,6 +7,7 @@ import { defaultContent } from './data'
 import Memories, { MEMORIES_KEY } from './Memories'
 import { loadContent, storage } from './storage'
 import { buildWhatsAppUrl, formatWhatsAppPreview, getWhatsAppLinkTarget } from './whatsapp'
+import { fetchSharedContent, sharedContentEnabled } from './sharedContent'
 import './App.css'
 
 const Admin = lazy(() => import('./Admin'))
@@ -25,10 +26,44 @@ const feelings = [
 
 function Site() {
   const [content, setContent] = useState(() => loadContent() || structuredClone(defaultContent))
+  const [sharedSyncState, setSharedSyncState] = useState(sharedContentEnabled ? 'loading' : 'local')
+  const [sharedSyncError, setSharedSyncError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [dark, setDark] = useState(() => storage.get('arati.theme.dark', false))
   const [welcomeDone, setWelcomeDone] = useState(false)
   const location = useLocation()
+  useEffect(() => {
+    if (!sharedContentEnabled) return undefined
+    let active = true
+    let fetching = false
+    const refresh = async () => {
+      if (fetching) return
+      fetching = true
+      try {
+        const sharedContent = await fetchSharedContent()
+        if (!active) return
+        if (sharedContent) setContent(sharedContent)
+        setSharedSyncState(sharedContent ? 'ready' : 'empty')
+        setSharedSyncError('')
+      } catch (error) {
+        if (!active) return
+        setSharedSyncState('error')
+        setSharedSyncError(error.message)
+      } finally {
+        fetching = false
+      }
+    }
+    refresh()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 15000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
   const savedPersonalization = content.personalization
   const personalization = savedPersonalization && typeof savedPersonalization === 'object' && !Array.isArray(savedPersonalization)
     ? {
@@ -74,6 +109,7 @@ function Site() {
   return <div className="site">
     <header className="site-header"><Link className="brand" to="/" aria-label={`A Little Place for ${personalization.name} home`}><span className="brand-mark">♡</span><span>A Little Place <small>for {personalization.name}</small></span></Link><button className="menu-toggle" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X /> : <Menu />}</button><nav className={`main-nav${menuOpen ? ' open' : ''}`} aria-label="Main navigation">{links.map(([label, path]) => <NavLink key={path} to={path} end={path === '/'} onClick={() => setMenuOpen(false)} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>{label}</NavLink>)}<button className="theme-toggle" onClick={() => setDark((value) => !value)} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button></nav></header>
     {notSaved && <div className="storage-banner" role="status">Browser storage is unavailable. Your changes may not be saved on this device.</div>}
+    {sharedContentEnabled && sharedSyncState !== 'ready' && <div className="storage-banner" role={sharedSyncState === 'error' ? 'alert' : 'status'}>{sharedSyncState === 'loading' ? 'Connecting to shared site content…' : sharedSyncState === 'empty' ? 'Shared content has not been published yet. Showing the default site until an admin publishes it.' : sharedSyncError}</div>}
     <main className="main-content"><AnimatePresence mode="wait"><motion.div key={location.pathname} className="route-content" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.2 }}><Routes>
       <Route path="/" element={<Home content={content} onReplay={() => setWelcomeDone(false)} />} />
       <Route path="/little-world" element={<LittleWorld />} />
@@ -94,8 +130,8 @@ function Site() {
       <Route path="/reminders" element={<Reminders items={content.reminders} />} />
       <Route path="/share-thoughts" element={<ShareThoughts settings={content.settings} />} />
       <Route path="/private-journal" element={<PrivateJournal />} />
-      <Route path="/superadmin" element={<Suspense fallback={<p className="studio-loading" role="status">Opening the content studio…</p>}><Admin content={content} onContent={setContent} /></Suspense>} />
-      <Route path="/superadmin25" element={<Suspense fallback={<p className="studio-loading" role="status">Opening the content studio…</p>}><Admin content={content} onContent={setContent} /></Suspense>} />
+      <Route path="/superadmin" element={<Suspense fallback={<p className="studio-loading" role="status">Opening the content studio…</p>}><Admin content={content} onContent={setContent} sharedContentEnabled={sharedContentEnabled} onSharedContentSaved={() => setSharedSyncState('ready')} /></Suspense>} />
+      <Route path="/superadmin25" element={<Suspense fallback={<p className="studio-loading" role="status">Opening the content studio…</p>}><Admin content={content} onContent={setContent} sharedContentEnabled={sharedContentEnabled} onSharedContentSaved={() => setSharedSyncState('ready')} /></Suspense>} />
       <Route path="*" element={<NotFound />} />
     </Routes></motion.div></AnimatePresence></main>
     <footer className="site-footer"><div className="footer-flower" aria-hidden="true">✿</div><p>{content.settings.footer}</p><span>A soft reminder: go at your own pace.</span></footer>
@@ -395,7 +431,7 @@ export function ShareThoughts({ settings }) {
     setStatus('')
     setError('')
   }
-  return <><PageHeading emoji="💗" title="Whenever you're ready, I'm here to listen 💗" intro="You can share whatever is on your mind. Write it in your own words—there's no need to make it perfect. 🌷" /><section className="card thought-card share-thought-card"><fieldset className="feeling-picker" aria-describedby="feeling-help"><legend>How are you feeling today?</legend><p id="feeling-help">Choose one if you like. You can share a feeling without writing a message.</p><div className="feeling-choice-grid">{feelings.map((item) => <label key={item.id} className={`feeling-choice${selectedFeeling === item.id ? ' selected' : ''}`}><input type="radio" name="share-feeling" value={item.id} checked={selectedFeeling === item.id} onChange={() => { setSelectedFeeling(item.id); setStatus(''); setError('') }} /><span aria-hidden="true">{item.icon}</span><b>{item.title}</b></label>)}</div></fieldset>{feeling && <label className="include-feeling"><input type="checkbox" checked={includeFeeling} onChange={(event) => setIncludeFeeling(event.target.checked)} /><span>Include “{feeling.title}” in the WhatsApp message</span></label>}<label className="field"><span>Your message <small>(optional when sharing a feeling)</small></span><textarea className="thought-editor" rows="9" aria-describedby="thought-count thought-privacy" value={text} onChange={(e) => { setText(e.target.value); setStatus(''); setError('') }} placeholder="Start wherever you like…" /></label><div className="thought-meta"><span id="thought-count" aria-live="polite">{text.length} characters</span><button className="text-button" onClick={clear}>Clear message</button></div><div className="button-row"><button className="button button-private" onClick={keep}>Keep privately 🌙</button>{whatsappShare.url ? <a className="button button-whatsapp" href={whatsappShare.url} target={whatsappTarget} rel="noopener noreferrer" onClick={shareOnWhatsApp}>Share on WhatsApp 💚</a> : <button className="button button-whatsapp" onClick={shareOnWhatsApp}>Share on WhatsApp 💚</button>}</div><p className="whatsapp-recipient">Receiver: <strong>{formatWhatsAppPreview(settings.whatsappNumber)}</strong> <span>Change this in Superadmin → WhatsApp Message Settings.</span></p><p className="privacy-note" id="thought-privacy">On a phone, WhatsApp opens in the current tab so the app can launch if installed. Review the prefilled message and tap Send. The website cannot send it automatically. Your feeling is temporary and is not saved with your draft; your private journal is never included.</p>{error && <p role="alert" className="status-line error-line">{error}</p>}{status && <p role="status" className="status-line">{status}</p>}</section></>
+  return <><PageHeading emoji="💗" title="Whenever you're ready, I'm here to listen 💗" intro="You can share whatever is on your mind. Write it in your own words—there's no need to make it perfect. 🌷" /><section className="card thought-card share-thought-card"><fieldset className="feeling-picker" aria-describedby="feeling-help"><legend>How are you feeling today?</legend><p id="feeling-help">Choose one if you like. You can share a feeling without writing a message.</p><div className="feeling-choice-grid">{feelings.map((item) => <label key={item.id} className={`feeling-choice${selectedFeeling === item.id ? ' selected' : ''}`}><input type="radio" name="share-feeling" value={item.id} checked={selectedFeeling === item.id} onChange={() => { setSelectedFeeling(item.id); setStatus(''); setError('') }} /><span aria-hidden="true">{item.icon}</span><b>{item.title}</b></label>)}</div></fieldset>{feeling && <label className="include-feeling"><input type="checkbox" checked={includeFeeling} onChange={(event) => { setIncludeFeeling(event.target.checked); setStatus(''); setError('') }} /><span>Include “{feeling.title}” in the WhatsApp message</span></label>}<label className="field"><span>Your message <small>(optional when sharing a feeling)</small></span><textarea className="thought-editor" rows="9" aria-describedby="thought-count thought-privacy" value={text} onChange={(e) => { setText(e.target.value); setStatus(''); setError('') }} placeholder="Start wherever you like…" /></label><div className="thought-meta"><span id="thought-count" aria-live="polite">{text.length} characters</span><button className="text-button" onClick={clear}>Clear message</button></div><div className="button-row"><button className="button button-private" onClick={keep}>Keep privately 🌙</button>{whatsappShare.url ? <a className="button button-whatsapp" href={whatsappShare.url} target={whatsappTarget} rel="noopener noreferrer" onClick={shareOnWhatsApp}>Share on WhatsApp 💚</a> : <button className="button button-whatsapp" onClick={shareOnWhatsApp}>Share on WhatsApp 💚</button>}</div><p className="whatsapp-recipient">Receiver: <strong>{formatWhatsAppPreview(settings.whatsappNumber)}</strong> <span>Change this in Superadmin → WhatsApp Message Settings.</span></p><p className="privacy-note" id="thought-privacy">On a phone, WhatsApp opens in the current tab so the app can launch if installed. Review the prefilled message and tap Send. The website cannot send it automatically. Your feeling is temporary and is not saved with your draft; your private journal is never included.</p>{error && <p role="alert" className="status-line error-line">{error}</p>}{status && <p role="status" className="status-line">{status}</p>}</section></>
 }
 
 function PrivateJournal() {

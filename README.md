@@ -1,6 +1,6 @@
 # A Little Place for Arati 💗
 
-A responsive, browser-only little world for kind notes, reminders, three small games, and private writing. Editable website content and personal drafts stay in the current browser; there is no application server, database, analytics, or cloud sync.
+A responsive little world for kind notes, reminders, games, and private writing. Public site content can be shared across devices through Supabase; personal drafts and journal entries remain in the current browser.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Vite prints the local development URL. The site uses React, Vite, Tailwind CSS, React Router, Motion for React, and Lucide icons.
+To enable shared editing locally, copy `.env.example` to `.env.local` and set the Supabase project URL and publishable (or anon) key. Without these values, the site continues in browser-local mode. Vite prints the local development URL. The site uses React, Vite, Tailwind CSS, React Router, Motion for React, Lucide icons, and Supabase.
 
 ## Checks
 
@@ -44,6 +44,7 @@ Publish the `dist` directory after running `npm run build`. The `public/_redirec
 - Journal entry create/edit/delete/clear controls. Entries stay in browser local storage and are not encrypted or password-protected.
 - Share Thoughts drafts are saved locally only on request. WhatsApp opens only after an explicit click; the message is prefilled for review and is never sent by the website.
 - A browser-local content editor for home, letters, reminders, puzzle settings, maze levels, theme, site settings, WhatsApp recipient settings, and public-content import/export.
+- Authenticated Superadmin editing with shared Supabase content, so published changes appear on other devices.
 - Mobile navigation and controls, keyboard focus indicators, reduced-motion CSS, and a light/dark display toggle.
 
 ## Project layout
@@ -55,15 +56,18 @@ src/
   Gift.css               Gift experience, scrapbook, and happiness corner styles
   Memories.jsx           Local-only scrapbook with validated photo uploads
   Memories.test.jsx      Scrapbook persistence and management tests
-  Admin.jsx              Browser-local content editor and public data tools
+  Admin.jsx              Authenticated shared/local content editor and public data tools
   Games.jsx              Game pages and interactive game components
   data.js                Seed letters, reminders, maze levels, and defaults
   gameEngines.js         Word-search, BFS maze, and block-grid logic
   storage.js             Versioned local storage and public-export filtering
+  sharedContent.js       Supabase shared-content and authentication client
   whatsapp.js            Recipient validation and Click to Chat URL helpers
   App.test.jsx           UI and interaction tests
   gameEngines.test.js    Content and engine tests
   whatsapp.test.jsx      WhatsApp URL, settings, and interaction tests
+supabase/
+  schema.sql             Shared content tables and row-level security policies
 ```
 
 ## Editing content
@@ -72,7 +76,7 @@ Personalization lives in `src/data.js` under `defaultContent.personalization` (n
 
 The scrapbook uses the `bestfriend.memories.v1` browser-local storage key, separate from the public content editor. Large photos are rejected to avoid filling browser storage. If a browser's local storage is cleared, its photos and captions are removed too.
 
-Open **Local editor** in the footer or navigate to `/superadmin25` (the previous `/superadmin` URL also works). It is intentionally not password-protected: anyone with access to the same browser profile can open it. Edits stay in that browser and are not shared with another device or visitor.
+Open **Local editor** in the footer or navigate to `/superadmin25` (the previous `/superadmin` URL also works). With Supabase configured, sign in with an admin account to publish shared changes. Without Supabase configuration, the editor works in browser-local mode only.
 
 - **Letters** creates, edits, publishes, reorders, previews, and deletes letters. Drafts do not appear in the public collection.
 - **Reminders** edits, reorders, and restores initial reminders.
@@ -81,13 +85,36 @@ Open **Local editor** in the footer or navigate to `/superadmin25` (the previous
 - **Home**, **Blocks**, **Theme**, and **Settings** edit their displayed values.
 - **Data tools** downloads or previews a compatible version 1 JSON file before an import is confirmed. Exports contain public site content only; journal entries and private thought drafts are excluded.
 
+## Shared content setup with Supabase
+
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor.
+2. In Supabase Authentication, keep public sign-ups disabled and create an email/password user for the site administrator.
+3. Add that user's UUID to the admin allow-list by running the following SQL, replacing the placeholder with the UUID shown for that user in Supabase Authentication:
+
+   ```sql
+   insert into public.site_admins (user_id)
+   values ('AUTH_USER_UUID');
+   ```
+
+4. Copy the Supabase Project URL and publishable (or anon) key into a local `.env.local` file (start from `.env.example`):
+
+   ```text
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+   ```
+
+5. Add those same variables to Netlify's environment variables for the deploy context, then redeploy. These are public client settings; **never put a Supabase service-role/secret key in the frontend or Netlify client build variables**.
+6. Open `/superadmin25`, sign in, and select **Publish current content to all devices** to publish the current site's content for the first time. Later edits sync automatically. Other open pages refresh shared content about every 15 seconds and when focused.
+
+The database policies allow everyone to read public website content, but only UUIDs listed in `site_admins` can change it. Add or remove administrator access by adding or deleting rows from that table. The dashboard must keep public user sign-ups disabled.
+
 ## Browser storage and privacy
 
-Editable content, favorites, game scores/progress, and explicitly saved thought drafts use `localStorage`. Browser storage can be cleared, may be unavailable or full, and is scoped to the current browser profile. There is no cross-device synchronization. Back up public content with **Local editor → Data tools → Export public content**.
+Published site content, including the configured WhatsApp receiver, is stored in Supabase and is visible to site visitors on all devices. Admin sign-in credentials and session tokens are handled by Supabase Auth. Favorites, game scores/progress, and explicitly saved thought drafts remain in browser `localStorage`. Back up public content with **Superadmin → Data tools → Export public content**.
 
-Journal entries are stored only in this browser. They are not encrypted or password-protected, and may be lost if browser data is cleared or the user changes devices. Do not use the journal as the sole copy of important information. Journal entries are separate from the content editor and public-content export.
+Journal entries and scrapbook photos stay only in the current browser. They are not encrypted or password-protected, and may be lost if browser data is cleared or the user changes devices. Do not use them as the sole copy of anything important. Private journal entries and thoughts are excluded from shared content and public-content exports.
 
-WhatsApp is optional. Its initial recipient is `7558764877`; a 10-digit number is treated as an Indian number and receives country code `91`. Change the receiver in **Local editor → WhatsApp Message Settings** using a 10-digit Indian number or a full international number (optionally starting with `+`). The editor previews the destination, and the Share Thoughts page shows which number will receive the message. This setting is saved only in that browser; to change the default receiver for every visitor, update `settings.whatsappNumber` in `src/data.js` and redeploy. On phones, the user-activated WhatsApp link opens in the current tab so the WhatsApp app can launch if installed; on desktop it opens in a new tab. The prefilled message opens addressed to the saved number for review; the recipient must press Send in WhatsApp. The website does not send or track delivery, and private journal entries are never included.
+If Supabase is not configured, content edits remain local to the current browser and will not sync to another device. WhatsApp is optional. Its initial receiver is `7558764877`; a 10-digit number is treated as an Indian number and receives country code `91`. Change it in **Superadmin → WhatsApp Message Settings**; this setting is shared with every visitor when Supabase is configured. On phones, the user-activated WhatsApp link opens in the current tab so the WhatsApp app can launch if installed; on desktop it opens in a new tab. WhatsApp pre-fills the message for review; the sender must tap Send. The website does not send or track delivery.
 
 ## Resetting content
 
